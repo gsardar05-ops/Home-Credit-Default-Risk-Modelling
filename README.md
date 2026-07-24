@@ -71,7 +71,7 @@ The project follows the workflow below:
    Evaluated predictive performance, ranking ability, classification outcomes and threshold trade-offs.
 
 7. **Expected Loss framework**  
-   Combined predicted PD with LGD and EAD assumptions or estimates to demonstrate portfolio-level loss analysis.
+   Combined model-generated default-risk scores with an assumed LGD and `AMT_CREDIT` as an EAD proxy to demonstrate Expected Loss analysis on the validation sample.
 
 ---
 
@@ -94,6 +94,8 @@ The project follows the workflow below:
 This project uses the **Home Credit Default Risk** dataset available through Kaggle.
 
 The target variable identifies applicants who experienced repayment difficulty.
+
+For this educational project, `TARGET` is treated as a proxy for default risk or repayment difficulty. It should not be interpreted as a formal regulatory definition of default.
 
 Raw data files are excluded from this repository because of their size. After downloading the dataset, place the required files inside:
 
@@ -138,9 +140,9 @@ Only variables implemented in the project notebooks should be treated as part of
 | Training observations | 246,008 |
 | Validation observations | 61,503 |
 | Decision threshold | 0.50 |
-| Number of final features | 256 |
+| Post-encoding model features | 256 |
 
-The final model was selected based on predictive performance, stability and relevance to the credit-risk problem.
+The engineered-feature logistic regression model was retained as the final model for this project because it marginally improved ROC-AUC over the baseline while preserving interpretability and incorporating business-relevant risk features.
 
 Where possible, model interpretability was considered alongside predictive accuracy.
 
@@ -177,7 +179,7 @@ The classification threshold determines how predicted probabilities are converte
 
 A lower threshold may identify a larger proportion of risky applicants, but it can also incorrectly flag more creditworthy applicants. A higher threshold may reduce false positives but increase the number of risky applicants that are missed.
 
-The final threshold was evaluated based on the trade-off between:
+Alternative threshold choices were reviewed in relation to the trade-off between:
 
 - Detecting applicants with repayment difficulty
 - Limiting unnecessary rejection of creditworthy applicants
@@ -187,59 +189,60 @@ The final threshold was evaluated based on the trade-off between:
 **Selected threshold:** `0.50`
 
 **Reason for selection:**  
-` The threshold of 0.50 was used as the baseline decision threshold for classification. It provides a standard benchmark for evaluating the trade-off between precision and recall. In future iterations, the threshold can be optimized based on lender risk appetite, approval-rate targets and expected loss impact.`
+The threshold of 0.50 was retained as a standard baseline decision threshold. It provides a consistent benchmark for evaluating classification performance but was not optimized for a specific lender objective. Future iterations can select the threshold using risk appetite, approval-rate targets, recall, precision and Expected Loss trade-offs.
 
 ---
 
 ## Borrower Risk Segmentation
 
-Predicted default probabilities were converted into borrower risk categories to make the model outputs easier to interpret.
+Model-generated default-risk scores were converted into borrower risk categories to make the model outputs easier to interpret.
 
-| Risk Segment | PD Range | Interpretation |
+| Risk Segment | Model Score Range | Interpretation |
 |---|---:|---|
-| Low Risk | **PD < 5%** | Applicants with comparatively low predicted repayment risk |
-| Medium Risk | **5% ≤ PD < 15%** | Applicants requiring standard monitoring and verification |
-| High Risk | **15% ≤ PD < 30%** | Applicants requiring additional credit assessment |
-| Very High Risk | **PD ≥ 30%** | Applicants with the highest predicted repayment risk |
+| Low Risk | **Score < 5%** | Applicants with comparatively low predicted repayment risk |
+| Medium Risk | **5% ≤ Score < 15%** | Applicants requiring standard monitoring and verification |
+| High Risk | **15% ≤ Score < 30%** | Applicants requiring additional credit assessment |
+| Very High Risk | **Score ≥ 30%** | Applicants with the highest predicted repayment risk |
 
-The final risk-band boundaries were determined using the distribution of predicted probabilities and the intended business use of the model.
+These are illustrative rule-based risk bands designed to translate model scores into interpretable applicant segments. The boundaries are not empirically calibrated and would require validation before operational use.
 
 ---
 
 ## Expected Loss Framework
 
-Expected Loss is represented as:
+**Expected Loss = Probability of Default × Loss Given Default × Exposure at Default**
 
-\[
-\text{Expected Loss} = \text{Probability of Default} \times \text{Loss Given Default} \times \text{Exposure at Default}
-\]
+Or, equivalently:
+
+`Expected Loss = PD × LGD × EAD`
 
 Where:
 
-- **Probability of Default:** Predicted likelihood of repayment difficulty generated by the model
+- **Probability of Default:** Model-generated default-risk score used as a proxy for the likelihood of repayment difficulty
 - **Loss Given Default:** Proportion of exposure expected to be lost if default occurs
 - **Exposure at Default:** Estimated outstanding exposure when default occurs
 
 ### Implementation
 
-- PD was generated using the final engineered-feature logistic regression model.
-- LGD was **assumed for demonstration**.
-- EAD was **approximated using `AMT_CREDIT`**.
+- A model-generated default-risk score was used as a proxy for PD.
+- LGD was assumed at **45% for demonstration**.
+- EAD was approximated using `AMT_CREDIT`.
+- Monetary outputs are reported in **dataset currency units**.
 
-Any assumed LGD or EAD values are explicitly documented and should not be interpreted as independently validated production estimates.
+These assumptions are illustrative and should not be interpreted as independently validated production estimates.
 
 ### Expected Loss Output
 
 | Measure | Result |
 |---|---:|
-| Validation-sample exposure | 36,765,080,145.00 |
-| Average predicted PD | 42.10% |
-| Total expected loss | 6,715,201,851.40 |
+| Validation-sample exposure | 36,765,080,145.00 dataset currency units |
+| Average modelled default-risk score | 42.10% |
+| Validation-sample expected loss | 6,715,201,851.40 dataset currency units |
 | Expected loss rate | 18.27% |
 
-These values are calculated on the validation sample and are intended to demonstrate the Expected Loss framework rather than represent a production-level portfolio loss estimate.
+These values are calculated on the validation sample and demonstrate the Expected Loss framework rather than represent a production-level portfolio loss estimate.
 
-Because the model uses class weighting to address target imbalance, predicted probabilities should be interpreted as modelled risk scores for ranking applicants. Probability calibration would be required before using these PD values in a production-grade Expected Loss model.
+Because the model uses class weighting to address target imbalance, its probability outputs should primarily be interpreted as relative risk scores for ranking applicants. Probability calibration would be required before treating them as production-grade PD estimates.
 
 ---
 
@@ -247,11 +250,10 @@ Because the model uses class weighting to address target imbalance, predicted pr
 
 - The dataset displays significant class imbalance: 8.07% of applicants faced repayment difficulty, while 91.93% did not.
 - `EXT_SOURCE_MEAN` was one of the strongest engineered risk indicators, with a correlation of -0.2221 with repayment difficulty.
-- Affordability-related variables such as credit-to-income ratio, annuity-to-income ratio and income per family member help translate raw applicant data into credit-risk indicators.
-- Engineered affordability variables help explain applicant repayment pressure, although external score variables remained stronger predictors of repayment difficulty.
+- Engineered affordability variables such as credit-to-income ratio, annuity-to-income ratio and income per family member help explain applicant repayment pressure, although external score variables remained stronger predictors.
 - Feature engineering slightly improved model performance relative to the baseline. Baseline ROC-AUC was 0.7483, while the engineered model ROC-AUC was 0.7492.
 - Threshold selection materially affects the trade-off between identifying risky applicants and incorrectly flagging creditworthy applicants.
-- Translating predicted PD into risk bands and Expected Loss provides more actionable information than a default/non-default classification alone.
+- Translating model-generated risk scores into borrower segments and an illustrative Expected Loss framework provides more actionable information than a default/non-default classification alone.
 
 ---
 
