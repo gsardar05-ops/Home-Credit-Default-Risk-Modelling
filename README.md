@@ -113,15 +113,18 @@ application_train.csv
 
 The feature-engineering stage includes selected variables related to applicant affordability, credit exposure and financial capacity.
 
-Examples may include:
+Implemented features include:
 
-- Credit amount relative to applicant income
-- Loan annuity relative to applicant income
-- Credit amount relative to goods price
+- Credit-to-income ratio
+- Annuity-to-income ratio
+- Credit-to-annuity ratio
 - Applicant age
 - Employment duration
-- External credit-score combinations
-- Document and information availability indicators
+- Employment-to-age ratio
+- Income per family member
+- Income per child
+- Mean external credit score
+- Document count
 
 Only variables implemented in the project notebooks should be treated as part of the final model.
 
@@ -134,7 +137,7 @@ Only variables implemented in the project notebooks should be treated as part of
 | Final model | Engineered Feature Logistic Regression Model |
 | Training observations | 246,008 |
 | Validation observations | 61,503 |
-| Decision threshold | 0.5 |
+| Decision threshold | 0.50 |
 | Number of final features | 256 |
 
 The final model was selected based on predictive performance, stability and relevance to the credit-risk problem.
@@ -184,7 +187,7 @@ The final threshold was evaluated based on the trade-off between:
 **Selected threshold:** `0.50`
 
 **Reason for selection:**  
-` Select threshold based on highest F1 Score`
+` The threshold of 0.50 was used as the baseline decision threshold for classification. It provides a standard benchmark for evaluating the trade-off between precision and recall. In future iterations, the threshold can be optimized based on lender risk appetite, approval-rate targets and expected loss impact.`
 
 ---
 
@@ -194,10 +197,10 @@ Predicted default probabilities were converted into borrower risk categories to 
 
 | Risk Segment | PD Range | Interpretation |
 |---|---:|---|
-| Low Risk | **[ADD RANGE]** | Applicants with comparatively low predicted repayment risk |
-| Moderate Risk | **[ADD RANGE]** | Applicants requiring standard monitoring and verification |
-| High Risk | **[ADD RANGE]** | Applicants requiring additional credit assessment |
-| Very High Risk | **[ADD RANGE]** | Applicants with the highest predicted repayment risk |
+| Low Risk | **PD < 5%** | Applicants with comparatively low predicted repayment risk |
+| Medium Risk | **5% ≤ PD < 15%** | Applicants requiring standard monitoring and verification |
+| High Risk | **15% ≤ PD < 30%** | Applicants requiring additional credit assessment |
+| Very High Risk | **PD ≥ 30%** | Applicants with the highest predicted repayment risk |
 
 The final risk-band boundaries were determined using the distribution of predicted probabilities and the intended business use of the model.
 
@@ -219,9 +222,9 @@ Where:
 
 ### Implementation
 
-- PD was generated using the final classification model.
-- LGD was **[MODELLED / ASSUMED FOR DEMONSTRATION]**.
-- EAD was **[MODELLED / APPROXIMATED / ASSUMED FOR DEMONSTRATION]**.
+- PD was generated using the final engineered-feature logistic regression model.
+- LGD was **assumed for demonstration**.
+- EAD was **approximated using `AMT_CREDIT`**.
 
 Any assumed LGD or EAD values are explicitly documented and should not be interpreted as independently validated production estimates.
 
@@ -229,20 +232,24 @@ Any assumed LGD or EAD values are explicitly documented and should not be interp
 
 | Measure | Result |
 |---|---:|
-| Total portfolio exposure | **[ADD VALUE]** |
-| Average predicted PD | **[ADD VALUE]** |
-| Total expected loss | **[ADD VALUE]** |
-| Expected loss rate | **[ADD VALUE]** |
+| Validation-sample exposure | 36,765,080,145.00 |
+| Average predicted PD | 42.10% |
+| Total expected loss | 6,715,201,851.40 |
+| Expected loss rate | 18.27% |
+
+These values are calculated on the validation sample and are intended to demonstrate the Expected Loss framework rather than represent a production-level portfolio loss estimate.
+
+Because the model uses class weighting to address target imbalance, predicted probabilities should be interpreted as modelled risk scores for ranking applicants. Probability calibration would be required before using these PD values in a production-grade Expected Loss model.
 
 ---
 
 ## Key Findings
 
-- The dataset displays significant class imbalance between applicants with and without repayment difficulty.
-- **[ADD KEY FINDING ABOUT IMPORTANT DEFAULT DRIVER]**
-- **[ADD KEY FINDING ABOUT AFFORDABILITY OR CREDIT VARIABLES]**
-- **[ADD KEY FINDING ABOUT EXTERNAL CREDIT SCORES OR OTHER FEATURES]**
-- Feature engineering **[IMPROVED / DID NOT MATERIALLY IMPROVE]** model performance relative to the baseline.
+- The dataset displays significant class imbalance: 8.07% of applicants faced repayment difficulty, while 91.93% did not.
+- `EXT_SOURCE_MEAN` was one of the strongest engineered risk indicators, with a correlation of -0.2221 with repayment difficulty.
+- Affordability-related variables such as credit-to-income ratio, annuity-to-income ratio and income per family member help translate raw applicant data into credit-risk indicators.
+- Engineered affordability variables help explain applicant repayment pressure, although external score variables remained stronger predictors of repayment difficulty.
+- Feature engineering slightly improved model performance relative to the baseline. Baseline ROC-AUC was 0.7483, while the engineered model ROC-AUC was 0.7492.
 - Threshold selection materially affects the trade-off between identifying risky applicants and incorrectly flagging creditworthy applicants.
 - Translating predicted PD into risk bands and Expected Loss provides more actionable information than a default/non-default classification alone.
 
@@ -250,13 +257,11 @@ Any assumed LGD or EAD values are explicitly documented and should not be interp
 
 ## Selected Visualisations
 
-Add the following section only after confirming that the image filenames and paths are correct.
-
 ### Target-Class Distribution
 
 ![Target-Class Distribution](reports/figures/class_distribution.png)
 
-The target distribution shows whether repayment-difficulty cases form a relatively small proportion of the applicant dataset.
+The target distribution shows that repayment-difficulty cases form a relatively small proportion of the applicant dataset, confirming that the classification problem is imbalanced.
 
 ### ROC Curve
 
@@ -276,9 +281,10 @@ The confusion matrix shows the number of correctly and incorrectly classified ap
 
 ```text
 Home-Credit-Default-Risk-Modelling/
-├── dashboard/          # Dashboard files and outputs
-├── data/               # Dataset instructions; raw files excluded
-│   └── raw/            # Local dataset location
+├── dashboard/                 # Dashboard files and outputs
+├── data/                      # Dataset instructions; raw files excluded
+│   ├── raw/                   # Local raw dataset location
+│   └── processed/             # Local processed outputs and model results
 ├── notebooks/
 │   ├── 01_data_understanding.ipynb
 │   ├── 02_application_train_eda.ipynb
@@ -288,8 +294,8 @@ Home-Credit-Default-Risk-Modelling/
 │   ├── 06_model_validation.ipynb
 │   └── 07_expected_loss_framework.ipynb
 ├── reports/
-│   └── figures/        # EDA and model-evaluation visualisations
-├── src/                # Reusable Python scripts
+│   └── figures/               # EDA and model-evaluation visualisations
+├── src/                       # Reusable Python scripts
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -311,7 +317,23 @@ git clone https://github.com/gsardar05-ops/Home-Credit-Default-Risk-Modelling.gi
 cd Home-Credit-Default-Risk-Modelling
 ```
 
-3. Create and activate a Python virtual environment.
+3. Create and activate a Python virtual environment:
+
+```bash
+python -m venv venv
+```
+
+For Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+For macOS/Linux:
+
+```bash
+source venv/bin/activate
+```
 
 4. Install the required libraries:
 
@@ -327,10 +349,16 @@ pip install -r requirements.txt
 data/raw/
 ```
 
+The main file required for the initial modelling workflow is:
+
+```text
+application_train.csv
+```
+
 7. Run the notebooks in numerical order, beginning with:
 
 ```text
-01_data_understanding.ipynb
+notebooks/01_data_understanding.ipynb
 ```
 
 ---
@@ -344,8 +372,6 @@ data/raw/
 - Matplotlib
 - Jupyter Notebook
 - Git and GitHub
-
-Add or remove libraries according to the actual project implementation.
 
 ---
 
